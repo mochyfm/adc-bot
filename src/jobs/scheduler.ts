@@ -1,81 +1,62 @@
 // jobs/scheduler.ts
 import { bot } from "../bot";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { listarMensajes } from "../services/scheduleService";
 import { escapeIfMarkdown } from "../utils/escapeMarkdownV2";
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const USER_ZONE = process.env.USER_TIMEZONE || "Europe/Madrid";
 const MAX_CAPTION = 1024;
 
 export function iniciarScheduler() {
   const revisarMensajes = async () => {
-    const ahora = dayjs();
-    const horaActual = ahora.format("HH:mm"); // ej. "23:47"
-    const fechaActual = `${ahora.date()}/${ahora.month() + 1}`; // ej. "14/6"
+    // 1) Obtenemos la hora y fecha **en Madrid**
+    const ahoraMadrid  = dayjs().tz(USER_ZONE);
+    const horaMadrid   = ahoraMadrid.format("HH:mm");          // e.g. "01:49"
+    const fechaMadrid  = `${ahoraMadrid.date()}/${ahoraMadrid.month() + 1}`;
+
+    console.log(`[Scheduler] horaPeninsula='${horaMadrid}', fecha='${fechaMadrid}'`);
+
+    // 2) Recorremos
     const mensajes = listarMensajes();
-
-    console.log(
-      `[Scheduler] tick: hora='${horaActual}', fecha='${fechaActual}'`
-    );
-
     for (const msg of mensajes) {
-      try {
-        console.log(
-          `– comprueba msg ${msg.id}: hora='${msg.hora}' día='${msg.dia}'`
-        );
+      // Filtrado de hora según Madrid
+      if (msg.hora !== horaMadrid) continue;
 
-        // 1) Hora exacta
-        if (msg.hora !== horaActual) {
-          console.log(`  → salto (hora no coincide, necesita '${msg.hora}')`);
-          continue;
-        }
+      // Filtrado de fecha puntual  
+      if (msg.dia?.includes("/")) {
+        const [dRaw, mRaw] = msg.dia.split("/");
+        const d = parseInt(dRaw, 10), m = parseInt(mRaw, 10);
+        if (d !== ahoraMadrid.date() || m !== ahoraMadrid.month() + 1) continue;
+      }
 
-        // 2) Fecha puntual (si hay slash)
-        if (msg.dia?.includes("/")) {
-          const [dRaw, mRaw] = msg.dia.split("/");
-          const d = parseInt(dRaw, 10),
-            m = parseInt(mRaw, 10);
-          if (d !== ahora.date() || m !== ahora.month() + 1) {
-            console.log(`  → salto (fecha '${msg.dia}' no coincide hoy)`);
-            continue;
-          }
-        }
-        // si msg.dia está vacío o no tiene "/", enviamos todos los días
+      // 3) Envío (texto, GIFs, fotos…) idéntico al de antes
+      const textoSeguro   = escapeIfMarkdown(msg.mensaje, true);
+      const needsSeparate = textoSeguro.length > MAX_CAPTION;
+      const fileId        = msg.fileId;
+      const type          = msg.mediaType;
 
-        // 3) Preparamos envío
-        console.log(`  → enviando msg ${msg.id} al chat ${msg.chatId}`);
-        const textoSeguro = escapeIfMarkdown(msg.mensaje, true);
-        const needsSeparate = textoSeguro.length > MAX_CAPTION;
-        const fileId = msg.fileId;
-        const type = msg.mediaType;
-
-        // 3a) Solo texto
-        if (!fileId) {
-          await bot.telegram.sendMessage(msg.chatId, textoSeguro, {
+      if (!fileId) {
+        await bot.telegram.sendMessage(msg.chatId, textoSeguro, { parse_mode: "MarkdownV2" });
+      } else if (type === "animation") {
+        if (!needsSeparate) {
+          await bot.telegram.sendAnimation(msg.chatId, fileId, {
+            caption: textoSeguro,
             parse_mode: "MarkdownV2",
           });
-          console.log(`    ✅ Texto enviado`);
-          continue;
+        } else {
+          const sent = await bot.telegram.sendAnimation(msg.chatId, fileId);
+          await bot.telegram.sendMessage(
+            msg.chatId,
+            textoSeguro,
+            { parse_mode: "MarkdownV2", reply_to_message_id: sent.message_id } as any
+          );
         }
-
-        // 3b) Animación (GIF) nativo
-        if (type === "animation") {
-          if (!needsSeparate) {
-            await bot.telegram.sendAnimation(msg.chatId, fileId, {
-              caption: textoSeguro,
-              parse_mode: "MarkdownV2",
-            });
-          } else {
-            const sent = await bot.telegram.sendAnimation(msg.chatId, fileId);
-            await bot.telegram.sendMessage(msg.chatId, textoSeguro, {
-              parse_mode: "MarkdownV2",
-              reply_to_message_id: sent.message_id,
-            } as any);
-          }
-          console.log(`    ✅ GIF enviado`);
-          continue;
-        }
-
-        // 3c) Fotos / Documentos / Vídeos con fallback para GIFs erroneamente tipados
+      } else {
         try {
           if (!needsSeparate) {
             await bot.telegram.sendPhoto(msg.chatId, fileId, {
@@ -84,16 +65,11 @@ export function iniciarScheduler() {
             });
           } else {
             await bot.telegram.sendPhoto(msg.chatId, fileId);
-            await bot.telegram.sendMessage(msg.chatId, textoSeguro, {
-              parse_mode: "MarkdownV2",
-            });
+            await bot.telegram.sendMessage(msg.chatId, textoSeguro, { parse_mode: "MarkdownV2" });
           }
-          console.log(`    ✅ Media enviada (foto/doc/video)`);
         } catch (err: any) {
-          const desc = err.response?.description as string;
-          if (desc?.includes("can't use file of type Animation as Photo")) {
-            console.warn(`    ⚠️ Fallback a GIF para msg ${msg.id}`);
-            // reenviamos como animación
+          // fallback GIF mal tipado
+          if (err.response?.description?.includes("Animation as Photo")) {
             if (!needsSeparate) {
               await bot.telegram.sendAnimation(msg.chatId, fileId, {
                 caption: textoSeguro,
@@ -101,27 +77,24 @@ export function iniciarScheduler() {
               });
             } else {
               const sent = await bot.telegram.sendAnimation(msg.chatId, fileId);
-              await bot.telegram.sendMessage(msg.chatId, textoSeguro, {
-                parse_mode: "MarkdownV2",
-                reply_to_message_id: sent.message_id,
-              } as any);
+              await bot.telegram.sendMessage(
+                msg.chatId,
+                textoSeguro,
+                { parse_mode: "MarkdownV2", reply_to_message_id: sent.message_id } as any
+              );
             }
-            console.log(`    ✅ GIF fallback enviado`);
-          } else {
-            throw err;
-          }
+          } else throw err;
         }
-      } catch (err) {
-        console.error(`❌ Error procesando msg ${msg.id}:`, err);
       }
+      console.log(`✅ msg ${msg.id} enviado en horaPeninsula=${horaMadrid}`);
     }
   };
 
-  // Arranca justo al cambio de minuto y luego cada minuto
-  const now = dayjs();
-  const delayInicial = 60000 - (now.second() * 1000 + now.millisecond());
+  // Arranque al cambio de minuto…
+  const now = dayjs().tz(USER_ZONE);
+  const delay = 60000 - (now.second() * 1000 + now.millisecond());
   setTimeout(() => {
     revisarMensajes();
     setInterval(revisarMensajes, 60 * 1000);
-  }, delayInicial);
+  }, delay);
 }

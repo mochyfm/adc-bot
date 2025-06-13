@@ -14,14 +14,14 @@ import { escapeIfMarkdown } from "../utils/escapeMarkdownV2";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-// Leemos la zona horaria del usuario desde la variable de entorno USER_TIMEZONE
+// Zona leída de env, por ejemplo "Europe/Madrid"
 const USER_ZONE = config.userTimezone;
 
 function extractFullText(msg: { text?: string; caption?: string }): string {
   return msg.text?.trim() ?? msg.caption?.trim() ?? "";
 }
 
-// Regex acepta hora HH:MM, optional fecha D/M, y mensaje
+// Regex acepta hora HH:MM, opcional fecha D/M, y mensaje
 const progRe =
   /^\/program(?:@\w+)?\s+(?:\[([^\]]+)\]\s+)?(\d{1,2}:\d{2})(?:\s+(\d{1,2}\/\d{1,2}))?\s+([\s\S]+)$/i;
 
@@ -36,11 +36,9 @@ export default function registerProgram(bot: Telegraf<Context>) {
     const isDev = ctx.from?.username === config.adminUser;
     const isGrpAdmin = !fromPrivate && (await esAdmin(ctx));
 
-    // helper para DM
     const dm = (text: string, opts: any = {}) =>
       bot.telegram.sendMessage(userId, text, opts);
 
-    // autorización
     if (!((fromPrivate && (isOwner || isDev)) || isGrpAdmin)) {
       return ctx.reply("⛔ No tienes permisos para programar mensajes.", {
         parse_mode: "HTML",
@@ -50,7 +48,6 @@ export default function registerProgram(bot: Telegraf<Context>) {
     const fullText = extractFullText(ctx.message as any);
     const m = fullText.match(progRe);
     if (!m) {
-      // ayuda por privado
       const help = `<b>🕒 Uso de /program</b>
 
 <b>Formas de uso:</b>
@@ -72,20 +69,12 @@ export default function registerProgram(bot: Telegraf<Context>) {
     }
 
     const rawTargets = m[1]?.split(/\s+/) ?? [];
-    const rawHora = m[2];      // formato HH:MM en USER_ZONE
-    const rawDia = m[3];       // formato D/M o undefined
+    const rawHora = m[2];      // Guardamos la hora tal cual (ej. "01:49")
+    const rawDia = m[3];       // Fecha puntual D/M o undefined
     const mensajeRaw = m[4].trim();
 
-    // convertimos rawHora desde USER_ZONE a hora del servidor (UTC/local)
-    const [h, min] = rawHora.split(":").map(Number);
-    const targetUtc = dayjs()
-      .tz(USER_ZONE)
-      .hour(h)
-      .minute(min)
-      .second(0)
-      .millisecond(0)
-      .utc();
-    const serverHora = targetUtc.format("HH:mm");
+    // YA NO convertimos la hora: la guardamos en USER_ZONE directamente
+    const serverHora = rawHora;
 
     // resolución de destinos
     const destinos: number[] = [];
@@ -119,13 +108,12 @@ export default function registerProgram(bot: Telegraf<Context>) {
       mediaType = "video";
     }
 
-    // guardado en scheduler
     let creados = 0;
     for (const chatId of destinos) {
       const nuevo: ScheduledMessage = {
         id: uuidv4(),
         chatId,
-        hora: serverHora,
+        hora: serverHora,    // ahora coincide con USER_ZONE
         dia: rawDia,
         mensaje: mensajeRaw,
         autor: userId,
@@ -141,21 +129,14 @@ export default function registerProgram(bot: Telegraf<Context>) {
 
     return ctx.reply(
       escapeIfMarkdown(
-        `✅ Mensaje${creados > 1 ? "s" : ""} programado${
-          creados > 1 ? "s" : ""
-        } para ${creados} chat${creados > 1 ? "s" : ""}.`,
+        `✅ Mensaje${creados > 1 ? "s" : ""} programado para ${creados} chat${creados > 1 ? "s" : ""}.`,
         true
       ),
       { parse_mode: "MarkdownV2" }
     );
   }
 
-  // /program texto
-  bot.command("program", (ctx) => {
-    return programHandler(ctx);
-  });
-
-  // /program con media/caption
+  bot.command("program", (ctx) => programHandler(ctx));
   bot.on("message", (ctx, next) => {
     const text = extractFullText(ctx.message as any).toLowerCase();
     if (text.startsWith("/program")) {
