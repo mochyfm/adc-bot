@@ -1,5 +1,5 @@
 // services/groupAliasService.ts
-import db from "../db";
+import { db } from "../db";
 
 type AliasRow = {
   alias: string;

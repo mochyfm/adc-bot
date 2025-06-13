@@ -1,5 +1,5 @@
 // services/scheduleService.ts
-import db from "../db";
+import { db } from "../db";
 import { ScheduledMessage } from "../types/ScheduledMessage";
 
 // Añadir un mensaje programado (sin cambios)

@@ -1,5 +1,5 @@
 // services/chatTypeService.ts
-import db from "../db";
+import { db } from "../db";
 
 // Define el tipo que esperas de la consulta
 type ChatTypeRow = {

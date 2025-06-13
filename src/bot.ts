@@ -1,13 +1,16 @@
 // src/bot.ts
 import dotenv from "dotenv";
 dotenv.config();
+import "./db";
+import { verifyDatabase } from "./db";
+
+verifyDatabase();
 
 import { Telegraf, Context } from "telegraf";
 import { config } from "./config";
 import fs from "fs";
 import path from "path";
 import { iniciarScheduler } from "./jobs/scheduler";
-import "./db";
 
 // 1) Arrancamos el scheduler
 iniciarScheduler();

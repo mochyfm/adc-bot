@@ -1,9 +1,17 @@
+// src/config.ts
+import dotenv from "dotenv";
+dotenv.config();
+
 export const config = {
-  env: process.env.NODE_ENV || 'development',
-  botToken: process.env.BOT_TOKEN || '',
-  devChatId: process.env.DEV_CHAT_ID ? parseInt(process.env.DEV_CHAT_ID, 10) : undefined,
-  ownerId: Number(process.env.OWNER_ID),
-  adminUser: process.env.ADMIN_USER?.toString().trim() !== '' ? process.env.ADMIN_USER!.toString() : "mochyfm",
-  botUsername: process.env.BOT_USERNAME ??  "MonitorTPYM_bot",
-  userTimezone: process.env.USER_TIMEZONE || "UTC"
+  botToken: process.env.BOT_TOKEN ?? "",
+  ownerId: Number(process.env.OWNER_ID) || 0,
+  devChatId: process.env.DEV_CHAT_ID ? Number(process.env.DEV_CHAT_ID) : undefined,
+  env: process.env.NODE_ENV ?? "development",
+
+  // ← Aquí la cambiamos:
+  adminUser: process.env.ADMIN_USER && process.env.ADMIN_USER.trim() !== ""
+    ? process.env.ADMIN_USER.trim()
+    : "mochyfm",
+
+  userTimezone: process.env.USER_TIMEZONE ?? "UTC",
 };
