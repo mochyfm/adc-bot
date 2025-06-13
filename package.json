@@ -1,0 +1,29 @@
+{
+  "name": "academiadecombate_bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/bot.ts",
+    "build": "tsc",
+    "start": "node dist/bot.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/dotenv": "^8.2.3",
+    "@types/node": "^22.15.30",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.5.0",
+    "telegraf": "^4.16.3",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.56"
+  }
+}
