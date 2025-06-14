@@ -23,15 +23,14 @@ function extractFullText(msg: { text?: string; caption?: string }): string {
 
 // Regex acepta hora HH:MM, opcional fecha D/M, y mensaje
 const progRe =
-  /^\/program(?:@\w+)?\s+(?:\[([^\]]+)\]\s+)?(\d{1,2}:\d{2})(?:\s+(\d{1,2}\/\d{1,2}))?\s+([\s\S]+)$/i;
+  /^\/program(?:@\w+)?\s+(?:\[([^\]]+)\]\s+)?(\d{1,2}:\d{1,2})(?:\s+(\d{1,2}\/\d{1,2}))?\s+([\s\S]+)$/i;
 
 export default function registerProgram(bot: Telegraf<Context>) {
   console.log("🔌 registerProgram initialized");
 
   async function programHandler(ctx: Context) {
     const userId = ctx.from!.id;
-    const chatType = ctx.chat?.type;
-    const fromPrivate = chatType === "private";
+    const fromPrivate = ctx.chat?.type === "private";
     const isOwner = ctx.from?.id === config.ownerId;
     const isDev = ctx.from?.username === config.adminUser;
     const isGrpAdmin = !fromPrivate && (await esAdmin(ctx));
@@ -69,12 +68,15 @@ export default function registerProgram(bot: Telegraf<Context>) {
     }
 
     const rawTargets = m[1]?.split(/\s+/) ?? [];
-    const rawHora = m[2];      // Guardamos la hora tal cual (ej. "01:49")
-    const rawDia = m[3];       // Fecha puntual D/M o undefined
+    const rawHora = m[2]; // e.g. "1:5" or "01:05"
+    const rawDia = m[3]; // Fecha puntual D/M o undefined
     const mensajeRaw = m[4].trim();
 
-    // YA NO convertimos la hora: la guardamos en USER_ZONE directamente
-    const serverHora = rawHora;
+    // Normalizamos rawHora a formato "HH:mm"
+    const [hNum, mNum] = rawHora.split(":").map((x) => parseInt(x, 10));
+    const hh = String(hNum).padStart(2, "0");
+    const mm = String(mNum).padStart(2, "0");
+    const serverHora = `${hh}:${mm}`;
 
     // resolución de destinos
     const destinos: number[] = [];
@@ -85,7 +87,9 @@ export default function registerProgram(bot: Telegraf<Context>) {
           await ctx.reply(`❌ Alias o ID no válido: ${t}`, {
             parse_mode: "HTML",
           });
-        } else destinos.push(id);
+        } else {
+          destinos.push(id);
+        }
       }
       if (!destinos.length) return;
     } else destinos.push(ctx.chat!.id);
@@ -108,12 +112,13 @@ export default function registerProgram(bot: Telegraf<Context>) {
       mediaType = "video";
     }
 
+    // guardado en scheduler
     let creados = 0;
     for (const chatId of destinos) {
       const nuevo: ScheduledMessage = {
         id: uuidv4(),
         chatId,
-        hora: serverHora,    // ahora coincide con USER_ZONE
+        hora: serverHora, // normalizado "HH:mm"
         dia: rawDia,
         mensaje: mensajeRaw,
         autor: userId,
@@ -122,14 +127,18 @@ export default function registerProgram(bot: Telegraf<Context>) {
       };
       añadirMensaje(nuevo);
       console.log(
-        `[Scheduler] Programado msg ${nuevo.id}: chat=${chatId} hora=${serverHora} día=${rawDia ?? "—"}`
+        `[Scheduler] Programado msg ${
+          nuevo.id
+        }: chat=${chatId} hora=${serverHora} día=${rawDia ?? "—"}`
       );
       creados++;
     }
 
     return ctx.reply(
       escapeIfMarkdown(
-        `✅ Mensaje${creados > 1 ? "s" : ""} programado para ${creados} chat${creados > 1 ? "s" : ""}.`,
+        `✅ Mensaje${creados > 1 ? "s" : ""} programado para ${creados} chat${
+          creados > 1 ? "s" : ""
+        }.`,
         true
       ),
       { parse_mode: "MarkdownV2" }
