@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import "./db";
 import { verifyDatabase } from "./db";
+import express from "express";
 
 verifyDatabase();
 
@@ -134,12 +135,25 @@ if (
   console.log("⚠️  Mensaje de arranque ya enviado anteriormente.");
 }
 
-// 9) Lanzamiento y apagado limpio
-console.log("Antes de launch");
-bot
-  .launch()
-  .then(() => console.log("✅  Bot lanzado (polling)."))
-  .catch((err) => console.error("❌  Error arrancando polling:", err));
+if (config.env === "production") {
+  const app = express();
+
+  app.use(bot.webhookCallback("/bot"));
+
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`🌐 Servidor Express escuchando en puerto ${port}`);
+
+    const webhookUrl = `${config.webhookBaseUrl}/bot`;
+    bot.telegram.setWebhook(webhookUrl)
+      .then(() => console.log(`✅ Webhook registrado en ${webhookUrl}`))
+      .catch(console.error);
+  });
+} else {
+  bot.launch()
+    .then(() => console.log("✅ Bot lanzado en modo desarrollo (polling)."))
+    .catch((err) => console.error("❌ Error arrancando polling:", err));
+}
 
 process.once("SIGINT", () => {
   bot.stop("SIGINT");
