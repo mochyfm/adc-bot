@@ -13,10 +13,10 @@ import fs from "fs";
 import path from "path";
 import { iniciarScheduler } from "./jobs/scheduler";
 
-// 1) Arrancamos el scheduler
+// 1) Arranca el scheduler
 iniciarScheduler();
 
-// 2) Creamos la instancia del bot
+// 2) Crea la instancia del bot
 export const bot = new Telegraf<Context>(config.botToken);
 console.log("ENV:", config.env, "DEV_CHAT_ID:", config.devChatId);
 
@@ -24,13 +24,8 @@ console.log("ENV:", config.env, "DEV_CHAT_ID:", config.devChatId);
 bot.use(async (ctx, next) => {
   const msg = ctx.message || ctx.editedMessage;
   if (msg) {
-    const text =
-      "text" in msg ? msg.text : "caption" in msg ? msg.caption : "(sin texto)";
-    console.log("📨 Mensaje recibido:", {
-      user: ctx.from?.username ?? "(sin username)",
-      chatId: ctx.chat?.id ?? "(sin chat)",
-      text,
-    });
+    console.log("📨 Mensaje recibido completo:");
+    console.dir(msg, { depth: null });
   }
   await next();
 });
@@ -145,12 +140,14 @@ if (config.env === "production") {
     console.log(`🌐 Servidor Express escuchando en puerto ${port}`);
 
     const webhookUrl = `${config.webhookBaseUrl}/bot`;
-    bot.telegram.setWebhook(webhookUrl)
+    bot.telegram
+      .setWebhook(webhookUrl)
       .then(() => console.log(`✅ Webhook registrado en ${webhookUrl}`))
       .catch(console.error);
   });
 } else {
-  bot.launch()
+  bot
+    .launch()
     .then(() => console.log("✅ Bot lanzado en modo desarrollo (polling)."))
     .catch((err) => console.error("❌ Error arrancando polling:", err));
 }

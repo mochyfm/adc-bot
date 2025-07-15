@@ -2,30 +2,33 @@
   "name": "academiadecombate_bot",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/bot.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/bot.ts",
-    "build": "tsc",
+    "dev": "tsx watch src/bot.ts",
+    "build": "rimraf dist && tsc",
     "start": "node dist/bot.js"
+  },
+  "engines": {
+    "node": "22.17.0"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "@types/dotenv": "^8.2.3",
     "@types/express": "^5.0.3",
     "@types/node": "^22.15.30",
-    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^12.2.0",
     "dayjs": "^1.11.13",
-    "dotenv": "^16.5.0",
+    "dotenv": "^17.2.0",
     "express": "^5.1.0",
+    "rimraf": "^6.0.1",
     "telegraf": "^4.16.3",
     "uuid": "^11.1.0",
-    "zod": "^3.25.56"
+    "zod": "^4.0.5"
   }
 }
