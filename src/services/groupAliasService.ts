@@ -8,11 +8,13 @@ type AliasRow = {
 
 // Guardar o actualizar un alias
 export function saveGroupAlias(alias: string, chatId: number): void {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO group_aliases (alias, chat_id)
     VALUES (?, ?)
     ON CONFLICT(alias) DO UPDATE SET chat_id = excluded.chat_id
-  `).run(alias, chatId);
+  `
+  ).run(alias, chatId);
 
   console.log(`✅ Alias guardado: ${alias} → ${chatId}`);
 }
@@ -28,7 +30,9 @@ export function getGroupIdFromAlias(alias: string): number | undefined {
 
 // Leer todos los alias
 export function leerAliases(): Record<string, number> {
-  const rows = db.prepare(`SELECT alias, chat_id FROM group_aliases`).all() as AliasRow[];
+  const rows = db
+    .prepare(`SELECT alias, chat_id FROM group_aliases`)
+    .all() as AliasRow[];
 
   const resultado: Record<string, number> = {};
   for (const row of rows) {
@@ -52,4 +56,20 @@ export function guardarAliases(aliases: Record<string, number>): void {
   });
 
   trans();
+}
+
+// Elimina un alias concreto
+export function removeGroupAlias(alias: string): boolean {
+  const result = db
+    .prepare("DELETE FROM group_aliases WHERE alias = ?")
+    .run(alias);
+  return result.changes > 0; // Devuelve true si ha eliminado algo
+}
+
+// Elimina por chat_id (ID del grupo/canal)
+export function removeGroupAliasById(chatId: number): boolean {
+  const result = db
+    .prepare("DELETE FROM group_aliases WHERE chat_id = ?")
+    .run(chatId);
+  return result.changes > 0;
 }

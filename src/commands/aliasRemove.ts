@@ -1,7 +1,9 @@
-// src/commands/aliasRemove.ts
 import { Telegraf, Context } from "telegraf";
 import { config } from "../config";
-import { leerAliases, guardarAliases } from "../services/groupAliasService";
+import {
+  removeGroupAlias,
+  removeGroupAliasById,
+} from "../services/groupAliasService";
 
 export default function registerAliasRemove(bot: Telegraf<Context>) {
   bot.command("alias_remove", async (ctx) => {
@@ -19,7 +21,6 @@ export default function registerAliasRemove(bot: Telegraf<Context>) {
       bot.telegram.sendMessage(userId, msg, opts);
 
     if (partes.length === 0) {
-      // ayuda privada
       await dm(
         "⚠️ *Debes indicar el alias o ID a eliminar.*\n\n" +
           "📌 *Ejemplos*: \n" +
@@ -34,9 +35,6 @@ export default function registerAliasRemove(bot: Telegraf<Context>) {
     }
 
     const input = partes[0];
-    const aliases = leerAliases();
-    const nuevo = { ...aliases };
-    let replyPublic = "";
 
     // modo grupo: solo admins pueden eliminar alias de grupo
     if (!fromPrivate && (chatType === "group" || chatType === "supergroup")) {
@@ -49,14 +47,14 @@ export default function registerAliasRemove(bot: Telegraf<Context>) {
           });
           return ctx.reply("📬 Revisa tu privado para más info.");
         }
-        if (!nuevo[input]) {
+        // Elimina directamente en base de datos
+        const ok = removeGroupAlias(input);
+        if (!ok) {
           await dm(`❌ No se encontró el alias «${input}».`, {
             parse_mode: "Markdown",
           });
           return ctx.reply("📬 Comprueba tu privado.");
         }
-        delete nuevo[input];
-        guardarAliases(nuevo);
         await dm(`✅ Alias eliminado: *${input}*`, { parse_mode: "Markdown" });
         return ctx.reply("✅ Alias eliminado. Comprueba tu privado.");
       } catch (e) {
@@ -70,11 +68,15 @@ export default function registerAliasRemove(bot: Telegraf<Context>) {
 
     // modo privado: owner puede eliminar por alias o por ID
     let eliminado = false;
-    for (const [alias, id] of Object.entries(aliases)) {
-      if (alias === input || (isOwner && String(id) === input)) {
-        delete nuevo[alias];
+    if (isOwner) {
+      if (removeGroupAlias(input)) {
         eliminado = true;
-        break;
+      } else if (!isNaN(Number(input)) && removeGroupAliasById(Number(input))) {
+        eliminado = true;
+      }
+    } else {
+      if (removeGroupAlias(input)) {
+        eliminado = true;
       }
     }
     if (!eliminado) {
@@ -85,7 +87,6 @@ export default function registerAliasRemove(bot: Telegraf<Context>) {
       return;
     }
 
-    guardarAliases(nuevo);
     await dm(`✅ Alias eliminado correctamente: \`${input}\``, {
       parse_mode: "Markdown",
     });
